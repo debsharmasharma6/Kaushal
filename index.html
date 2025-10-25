@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story App</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        :root { --primary-bg: #121212; --secondary-bg: #1e1e1e; --text-primary: #ffffff; --text-secondary: #b3b3b3; --accent-color: #1DB954; --favourite-color: #1DB954; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: var(--primary-bg); color: var(--text-primary); overflow: hidden; }
+        .app-container { max-width: 480px; margin: auto; background-color: var(--primary-bg); display: flex; flex-direction: column; height: 100vh; position: relative; overflow: hidden; }
+
+        .page-container { flex-grow: 1; position: relative; }
+        .page { display: none; flex-direction: column; position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; background-color: var(--primary-bg); }
+        .page.active { display: flex; z-index: 10; }
+
+        #player-page, #video-player-page { z-index: 100; transform: translateY(100%); transition: transform 0.4s ease-in-out; background-color: #000; }
+        #player-page.active, #video-player-page.active { transform: translateY(0); }
+
+        .main-content { flex-grow: 1; overflow-y: auto; padding-bottom: 60px; transition: padding-bottom 0.3s ease-in-out; }
+        .main-content::-webkit-scrollbar { display: none; }
+        #home-page .main-content, #video-page .main-content { padding-top: 70px; }
+        .app-container.with-mini-player .main-content,
+        .app-container.with-mini-video-player .main-content { padding-bottom: 125px; }
+
+        #mini-player, #mini-video-player { position: absolute; bottom: 60px; left: 8px; right: 8px; max-width: 480px; margin: 0 auto; background-color: #282828; border-radius: 4px; padding: 8px; display: flex; align-items: center; gap: 12px; z-index: 99; transform: translateY(200%); transition: transform 0.3s ease-in-out; cursor: pointer; overflow: hidden; }
+        #mini-player.active, #mini-video-player.active { transform: translateY(0); }
+        #mini-player-progress-bar, #mini-video-player-progress-bar { position: absolute; bottom: 0; left: 0; height: 2px; width: 100%; background-color: #535353; }
+        #mini-player-progress, #mini-video-player-progress { height: 100%; width: 0%; background-color: var(--text-primary); }
+        #mini-player-cover, #mini-video-player-thumbnail { width: 40px; height: 40px; border-radius: 4px; flex-shrink: 0; object-fit: cover; }
+        #mini-player-info, #mini-video-player-info { flex-grow: 1; overflow: hidden; }
+        #mini-player-info .title, #mini-video-player-info .title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #mini-player-info .author { font-size: 12px; color: var(--text-secondary); }
+        #mini-player-controls, #mini-video-player-controls { display: flex; align-items: center; }
+        #mini-player-controls button, #mini-video-player-controls button { background: none; border: none; color: var(--text-primary); font-size: 22px; cursor: pointer; margin-left: 10px; }
+
+        .slider-container { display: none; width: calc(100% - 32px); margin: 0 16px 24px 16px; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; position: relative; background-color: var(--secondary-bg); }
+        .slides-wrapper { display: flex; height: 100%; transition: transform 0.5s ease-in-out; }
+        .slide { flex-shrink: 0; width: 100%; height: 100%; cursor: pointer; }
+        .slide img { width: 100%; height: 100%; object-fit: cover; }
+
+        .app-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background-color: var(--primary-bg); z-index: 10; transition: transform 0.3s ease-in-out; position: absolute; top: 0; width: 100%; }
+        #home-page .app-header.header-hidden { transform: translateY(-100%); }
+        .app-header .logo { font-size: 24px; font-weight: bold; background-color: var(--accent-color); color: #000; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; flex-shrink: 0; }
+        .header-icons { display: flex; align-items: center; gap: 16px; }
+        .header-icons .icon-btn { background: none; border: none; color: var(--text-primary); font-size: 20px; cursor: pointer; }
+
+        .stories-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 0 16px; }
+        .stories-scroll-container { display: flex; gap: 16px; overflow-x: auto; padding: 0 16px 16px 16px; }
+        .stories-scroll-container::-webkit-scrollbar { display: none; }
+        .stories-scroll-container .story-card { flex-shrink: 0; width: 150px; }
+
+        .story-card { cursor: pointer; position: relative;}
+        .story-card img { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; }
+        .story-card .title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+        .story-card .details { font-size: 12px; color: var(--text-secondary); }
+        .fav-icon-card { position: absolute; top: 12px; right: 12px; font-size: 22px; color: rgba(255, 255, 255, 0.7); text-shadow: 1px 1px 3px rgba(0,0,0,0.8); cursor: pointer; z-index: 5;}
+        .fav-icon-card.active { color: var(--favourite-color); }
+
+        .player-page .main-content { padding: 0; justify-content: space-between; }
+        .player-header { padding: 20px; display: flex; align-items: center; }
+        .back-btn { background: none; border: none; font-size: 24px; color: var(--text-primary); cursor: pointer; }
+        .player-body { padding: 0 24px; }
+        .cover-image-container { width: 100%; padding-top: 100%; position: relative; margin: 0 auto 20px auto; border-radius: 8px; overflow: hidden; }
+        .cover-image { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        .title-fav-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .story-info { text-align: left; overflow: hidden; padding-right: 10px; flex-grow: 1;} /* <-- MODIFIED: Added flex-grow */
+        .story-info .title { font-size: 24px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+        .story-info .author { font-size: 16px; color: var(--text-secondary); }
+        .fav-icon-player { font-size: 24px; color: var(--text-secondary); cursor: pointer; flex-shrink: 0;}
+        .fav-icon-player.active { color: var(--favourite-color); }
+        .progress-bar-container { margin-bottom: 0; cursor: pointer; }
+        .progress-bar { width: 100%; height: 4px; background-color: #444; border-radius: 5px; }
+        .progress { width: 0%; height: 100%; background-color: var(--text-primary); border-radius: 5px; }
+        .time-stamps { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+        .player-controls { display: flex; justify-content: space-between; align-items: center; margin: 20px 0 30px 0; }
+        .icon-btn { font-size: 24px; color: var(--text-primary); cursor: pointer; border: none; background: none; flex-grow: 1; }
+        .icon-btn.active { color: var(--accent-color) }
+        .play-btn { font-size: 56px; }
+
+        .bottom-nav { position: absolute; bottom: 0; left: 0; right: 0; max-width: 480px; margin: auto; display: flex; justify-content: space-around; background-color: var(--secondary-bg); padding-top: 10px; padding-bottom: 10px; border-top: 1px solid #333; z-index: 50; display: none; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; color: var(--text-secondary); text-decoration: none; font-size: 12px; border: none; background: none; cursor: pointer; flex-grow: 1; }
+        .nav-item i { font-size: 22px; margin-bottom: 4px; }
+        .nav-item.active { color: var(--accent-color); }
+
+        #search-page .search-container-page, #video-search-page .search-container-page { display: flex; align-items: center; gap: 16px; width: 100%; }
+        #search-page .icon-btn, #video-search-page .icon-btn { flex-shrink: 0; padding: 0; font-size: 20px; }
+        #search-page .search-bar, #video-search-page .search-bar { width: 100%; }
+
+        .search-bar { width: 100%; padding: 12px; background-color: var(--secondary-bg); border: 1px solid #333; border-radius: 8px; color: var(--text-primary); font-size: 16px; }
+
+        .section-header { padding: 0 16px; margin-bottom: 12px; }
+        .section-header.with-controls { display: flex; justify-content: space-between; align-items: center; }
+        .section-header .view-all-btn { background: none; border: none; color: var(--accent-color); font-size: 14px; cursor: pointer; }
+        .section-title { font-size: 20px; font-weight: bold; }
+
+        .loading-text { text-align: center; margin-top: 50px; color: var(--text-secondary); padding: 0 16px; }
+        .categories-page-list { padding: 16px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .category-list-item { position: relative; height: 120px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; background-size: cover; background-position: center; cursor: pointer; }
+        .category-list-item::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to top, rgba(0,0,0,0.7), transparent); }
+        .category-list-item span { color: white; font-size: 18px; font-weight: bold; z-index: 2; position: absolute; bottom: 10px; left: 10px;}
+
+        #profile-page .main-content { padding-top: 16px; }
+        .profile-card { background-color: var(--secondary-bg); border-radius: 12px; padding: 20px; margin: 0 16px 16px 16px; display: flex; align-items: center; gap: 16px; }
+        .profile-avatar { width: 60px; height: 60px; border-radius: 50%; background-color: #e85d75; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; flex-shrink: 0; }
+        .profile-info { flex-grow: 1; }
+        .profile-name { font-size: 20px; font-weight: bold; margin-bottom: 4px; }
+        .profile-email, .profile-bio { font-size: 14px; color: var(--text-secondary); }
+        .profile-bio { margin-top: 8px; }
+        .edit-profile-btn { font-size: 18px; padding: 8px; }
+
+        .profile-options-list { list-style: none; margin: 0 16px; }
+        .profile-option-item { display: flex; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--secondary-bg); font-size: 16px; cursor: pointer; }
+        .profile-option-item:last-child { border-bottom: none; }
+        .profile-option-item .list-icon { font-size: 20px; color: var(--text-secondary); width: 40px; text-align: center; margin-right: 12px; }
+        .profile-option-item span { flex-grow: 1; }
+        .profile-option-item .arrow-icon { color: var(--text-secondary); font-size: 14px; }
+
+        .video-list { padding-bottom: 16px; }
+        .video-item { display: flex; margin-bottom: 16px; padding: 0 16px; cursor: pointer; align-items: center; }
+        .video-thumbnail-container { position: relative; width: 120px; height: 67.5px; flex-shrink: 0; margin-right: 12px; }
+        .video-thumbnail { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+        .video-info { flex-grow: 1; overflow: hidden; }
+        .video-title { font-size: 16px; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        #video-player-page .main-content { padding: 0; display: flex; flex-direction: column; }
+        .video-player-top-section { flex-shrink: 0; }
+        #up-next-video-list { flex-grow: 1; overflow-y: auto; padding-top: 16px; }
+        #up-next-video-list::-webkit-scrollbar { display: none; }
+        .video-player-container { width: 100%; aspect-ratio: 16 / 9; background-color: #000; position: relative; }
+        .video-header { padding: 20px; display: flex; align-items: center; position: absolute; top: 0; left: 0; z-index: 5; }
+        .playing-video-details { padding: 12px 16px; border-bottom: 1px solid var(--secondary-bg); }
+        .playing-video-details h2 { font-size: 18px; font-weight: bold; flex: 1; } /* <-- MODIFIED: Added flex: 1 */
+        .playing-video-description { font-size: 14px; color: var(--text-secondary); margin-top: 8px; white-space: pre-wrap; line-height: 1.5; }
+
+        .lang-select-btn { width: 80%; padding: 20px; font-size: 24px; font-weight: bold; border: none; border-radius: 8px; margin-bottom: 20px; cursor: pointer; }
+        .lang-select-btn.bengali { background-color: var(--accent-color); color: var(--primary-bg); }
+        .lang-select-btn.hindi { background-color: var(--secondary-bg); color: var(--text-primary); border: 1px solid var(--accent-color); }
+
+        .view-all-btn { background: none; border: none; color: var(--accent-color); font-size: 14px; cursor: pointer; }
+
+        /* === START: Password Toggle CSS === */
+        .password-container {
+            position: relative;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .password-container .search-bar {
+            width: 100%;
+            margin-bottom: 0; /* Remove margin from input */
+            padding-right: 45px; /* Make space for the icon */
+        }
+        .toggle-password {
+            position: absolute;
+            top: 50%;
+            right: 15px;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 18px;
+        }
+        /* === END: Password Toggle CSS === */
+
+        /* === START: Plan & Payment CSS === */
+        .plan-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+        .plan-card {
+            background-color: var(--secondary-bg);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .plan-card-info {
+            flex-grow: 1;
+        }
+        .plan-card-info .plan-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .plan-card-info .plan-details {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        .plan-card .buy-plan-btn {
+            background-color: var(--accent-color);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .payment-details-box {
+            background-color: var(--secondary-bg);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        /* === END: Plan & Payment CSS === */
+
+        /* === START: Payment History CSS === */
+        .payment-history-item {
+            background: var(--secondary-bg);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            border-left-width: 5px;
+        }
+        .payment-history-item.status-pending { border-left-color: #007bff; }
+        .payment-history-item.status-approved { border-left-color: var(--accent-color); }
+        .payment-history-item.status-rejected { border-left-color: #e85d75; }
+        .payment-history-item .plan-name { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+        .payment-history-item .details { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+        .payment-history-item .status { font-weight: bold; text-transform: uppercase; margin-top: 8px; display: block; }
+        /* === END: Payment History CSS === */
+
+        /* === START: Payment Page UI Fix === */
+        #payment-page .main-content form {
+            margin-bottom: 80px; /* Add space below the form for the button */
+        }
+        /* === END: Payment Page UI Fix === */
+
+        /* === START: Generic Popup CSS === */
+        .popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+        }
+        .popup-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--secondary-bg);
+            border-radius: 12px;
+            padding: 24px;
+            z-index: 1001;
+            width: calc(100% - 40px);
+            max-width: 350px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .popup-modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 24px;
+        }
+        .popup-modal-buttons button {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border-radius: 8px;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        .popup-modal-buttons .btn-primary {
+            background-color: var(--accent-color);
+        }
+        .popup-modal-buttons .btn-secondary {
+            background-color: #555;
+        }
+         /* Single Button Style */
+        .popup-modal .btn-single {
+             width: 100%;
+             padding: 12px;
+             font-size: 16px;
+             background-color: var(--accent-color);
+             border-radius: 8px;
+             color: #fff;
+             border: none;
+             cursor: pointer;
+             margin-top: 20px; /* Add some space */
+        }
+        /* === END: Generic Popup CSS === */
+
+    </style>
+</head>
+<body>
+    <audio id="audio-player"></audio>
+    <div class="app-container" id="app-container">
+        <div class="page-container">
+
+            <div id="auth-page" class="page">
+                <main class="main-content" style="padding: 20px; justify-content: center; text-align: center;">
+                    <div class="logo" style="margin: 0 auto 20px auto; width: 60px; height: 60px; font-size: 36px;">S</div>
+                    <h1 style="margin-bottom: 20px;">Welcome</h1>
+                    <div id="auth-form-container" style="max-width: 300px; margin: auto;">
+                        <form id="login-form" style="margin-bottom: 20px;">
+                            <input type="email" id="login-email" class="search-bar" placeholder="Email" required style="margin-bottom: 10px;">
+                            <div class="password-container">
+                                <input type="password" id="login-password" class="search-bar" placeholder="Password" required>
+                                <i class="fas fa-eye toggle-password" data-target="login-password"></i>
+                            </div>
+                            <button type="submit" class="view-all-btn" style="width: 100%; padding: 12px; font-size: 16px; background-color: var(--accent-color); border-radius: 8px; color: #fff;">Login</button>
+                        </form>
+                        <form id="register-form" style="display:none; margin-bottom: 20px;">
+                            <input type="text" id="register-name" class="search-bar" placeholder="Name" required style="margin-bottom: 10px;">
+                            <input type="tel" id="register-mobile" class="search-bar" placeholder="Mobile Number" required style="margin-bottom: 10px;">
+                            <input type="email" id="register-email" class="search-bar" placeholder="Email" required style="margin-bottom: 10px;">
+                            <div class="password-container">
+                                <input type="password" id="register-password" class="search-bar" placeholder="Password" required>
+                                <i class="fas fa-eye toggle-password" data-target="register-password"></i>
+                            </div>
+                            <button type="submit" class="view-all-btn" style="width: 100%; padding: 12px; font-size: 16px; background-color: var(--accent-color); border-radius: 8px; color: #fff;">Register</button>
+                        </form>
+                        <p id="auth-error" style="color: #e85d75; margin-bottom: 10px; min-height: 1.2em;"></p>
+                        <button id="toggle-auth-form-btn" style="background:none; border:none; color: var(--accent-color); cursor:pointer;">Need an account? Register</button>
+                    </div>
+                </main>
+            </div>
+
+            <div id="expired-page" class="page">
+                <main class="main-content" style="padding: 20px; justify-content: center; text-align: center;">
+                    <div class="logo" style="margin: 0 auto 20px auto; width: 60px; height: 60px; font-size: 36px;">S</div>
+                    <h1 style="color: #e85d75; margin-bottom: 20px;">Account Expired</h1>
+                    <p style="color: var(--text-secondary); margin-bottom: 30px;">Your subscription has expired. Please contact support to renew your access.</p>
+                    <button id="expired-logout-btn" class="view-all-btn" style="width: 100%; max-width: 300px; padding: 12px; font-size: 16px; background-color: var(--accent-color); border-radius: 8px; color: #fff;">Logout</button>
+                </main>
+            </div>
+
+            <div id="subscription-page" class="page">
+                <header class="app-header" style="position: static; justify-content: flex-start; gap: 20px;">
+                    <button id="subscription-back-btn" class="icon-btn" style="font-size: 20px;"><i class="fas fa-arrow-left"></i></button>
+                    <h2 style="padding-left: 0;">Renew Subscription</h2>
+                </header>
+                <main class="main-content" style="padding: 20px; justify-content: center; text-align: center;">
+                    <i class="fas fa-lock" style="font-size: 60px; color: var(--accent-color); margin-bottom: 20px;"></i>
+                    <h1 style="margin-bottom: 20px;">Content Locked</h1>
+                    <p style="color: var(--text-secondary); margin-bottom: 30px; line-height: 1.5;">
+                        Your subscription has expired. Please renew your plan to play audio and video stories.
+                    </p>
+                    <p style="color: var(--text-secondary);">
+                        Please contact support to renew.
+                    </p>
+                </main>
+            </div>
+
+            <div id="language-page" class="page">
+                <main class="main-content" style="padding: 20px; justify-content: center; text-align: center;">
+                    <h2 class="section-title" style="margin-bottom: 30px;">আপনি কোন ভাষায় গল্প শুনতে চান?</h2>
+                    <h2 class="section-title" style="margin-bottom: 30px;">आप किस भाषा में कहानियाँ सुनना चाहते हैं?</h2>
+                    <button class="lang-select-btn bengali" data-lang="bn">বাংলা</button>
+                    <button class="lang-select-btn hindi" data-lang="hi">हिंदी</button>
+                </main>
+            </div>
+
+            <div id="home-page" class="page">
+                <header class="app-header">
+                    <div class="logo">S</div>
+                    <div class="header-icons">
+                        <button id="search-icon-btn" class="icon-btn"><i class="fas fa-search"></i></button>
+                    </div>
+                </header>
+                <main class="main-content">
+                    <div class="slider-container" id="slider-container"></div>
+                    <div id="trending-section">
+                        <div class="section-header with-controls">
+                            <h2 class="section-title">Trending</h2>
+                            <button class="view-all-btn" id="view-all-trending-btn">View All</button>
+                        </div>
+                        <div class="stories-scroll-container" id="trending-stories-container"><p class="loading-text">Loading...</p></div>
+                    </div>
+                    <div class="section-header" style="margin-top: 24px;">
+                        <h2 class="section-title" id="story-section-title">All Stories</h2>
+                    </div>
+                    <div class="stories-grid" id="stories-list"><p class="loading-text">Loading Stories...</p></div>
+                </main>
+            </div>
+
+            <div id="search-page" class="page">
+                <header class="app-header">
+                    <div class="search-container-page">
+                        <button id="search-back-btn" class="icon-btn"><i class="fas fa-arrow-left"></i></button>
+                        <input type="text" id="search-bar-page" class="search-bar" placeholder="গল্প বা লেখকের নাম খুঁজুন...">
+                    </div>
+                </header>
+                <main class="main-content" style="padding-top: 70px;">
+                    <div class="stories-grid" id="search-results-list"><p class="loading-text">Start typing...</p></div>
+                </main>
+            </div>
+
+            <div id="categories-page" class="page"><header class="app-header" style="position: static;"><h2 style="padding-left: 16px;">Categories</h2></header><main class="main-content"><div class="categories-page-list" id="full-category-list"><p class="loading-text">Loading...</p></div></main></div>
+
+            <div id="video-page" class="page">
+                <header class="app-header">
+                    <div class="logo">S</div>
+                    <h2 class="section-title" style="flex-grow: 1; text-align: center;">Video Stories</h2>
+                    <div class="header-icons">
+                        <button id="video-search-icon-btn" class="icon-btn"><i class="fas fa-search"></i></button>
+                    </div>
+                </header>
+                <main class="main-content">
+                    <div class="video-list" id="video-list-container"><p class="loading-text">Loading...</p></div>
+                </main>
+            </div>
+
+            <div id="video-search-page" class="page">
+                <header class="app-header">
+                    <div class="search-container-page">
+                        <button id="video-search-back-btn" class="icon-btn"><i class="fas fa-arrow-left"></i></button>
+                        <input type="text" id="video-search-bar-page" class="search-bar" placeholder="ভিডিও খুঁজুন...">
+                    </div>
+                </header>
+                <main class="main-content" style="padding-top: 70px;">
+                    <div class="video-list" id="video-search-results-list"><p class="loading-text">Start typing to search videos...</p></div>
+                </main>
+            </div>
+
+            <div id="video-player-page" class="page">
+                <main class="main-content">
+                    <div class="video-player-top-section">
+                        <div class="video-header">
+                            <button id="video-player-minimize-btn" class="back-btn"><i class="fas fa-chevron-down"></i></button>
+                        </div>
+                        <div class="video-player-container">
+                            <video id="video-player-element" width="100%" height="100%" controls controlslist="nodownload" style="background-color: #000;"></video>
+                        </div>
+                        <div class="playing-video-details">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h2 id="playing-video-title"></h2>
+                                <i class="fas fa-download" id="video-download-btn" style="font-size: 22px; color: var(--text-secondary); cursor: pointer; margin-left: 16px; flex-shrink: 0;"></i>
+                            </div>
+                            <p id="playing-video-description" class="playing-video-description"></p>
+                        </div>
+                    </div>
+                    <div class="video-list" id="up-next-video-list"></div>
+                </main>
+            </div>
+
+            <div id="favourites-page" class="page"><header class="app-header" style="position: static;"><h2 style="padding-left: 16px;">My Favourites</h2></header><main class="main-content"><div class="stories-grid" id="favourites-list"></div></main></div>
+            <div id="trending-page" class="page"><header class="app-header" style="position: static;"><h2 style="padding-left: 16px;">Trending Stories</h2></header><main class="main-content"><div class="stories-grid" id="trending-page-grid"></div></main></div>
+
+            <div id="profile-page" class="page">
+                <header class="app-header" style="position: static;">
+                    <h2 style="padding-left: 16px;">Profile</h2>
+                    <div class="header-icons">
+                        <button class="icon-btn" id="profile-settings-btn"><i class="fas fa-cog"></i></button>
+                    </div>
+                </header>
+                <main class="main-content">
+                    <div class="profile-card">
+                        <div class="profile-avatar">U</div>
+                        <div class="profile-info">
+                            <div class="profile-name" id="profile-name-display">User</div>
+                            <div class="profile-email" id="profile-email-display">email@example.com</div>
+                        </div>
+                    </div>
+                    <ul class="profile-options-list">
+                        <li id="nav-to-wallet-btn" class="profile-option-item">
+                            <i class="fas fa-wallet list-icon"></i>
+                            <span style="flex-grow: 1;">
+                                Comic Wallet
+                                <small id="comic-wallet-details" style="display: block; color: var(--text-secondary); font-size: 12px; margin-top: 4px;">Loading validity...</small>
+                            </span>
+                            <i class="fas fa-chevron-right arrow-icon"></i>
+                        </li>
+                        <li id="change-language-btn" class="profile-option-item"><i class="fas fa-language list-icon"></i><span>Change Language</span><i class="fas fa-chevron-right arrow-icon"></i></li>
+                        <li id="help-support-btn" class="profile-option-item"><i class="fas fa-question-circle list-icon"></i><span>Help & Support</span><i class="fas fa-chevron-right arrow-icon"></i></li>
+                        <li id="privacy-policy-btn" class="profile-option-item"><i class="fas fa-shield-alt list-icon"></i><span>Privacy Policy</span><i class="fas fa-chevron-right arrow-icon"></i></li>
+                        <li id="invite-friends-btn" class="profile-option-item"><i class="fas fa-share-alt list-icon"></i><span>Invite friends</span><i class="fas fa-chevron-right arrow-icon"></i></li>
+                        <li id="logout-btn" class="profile-option-item" style="color: #e85d75;"><i class="fas fa-sign-out-alt list-icon"></i><span>Logout</span><i class="fas fa-chevron-right arrow-icon"></i></li>
+                    </ul>
+                </main>
+            </div>
+
+            <div id="wallet-page" class="page">
+                <header class="app-header" style="position: static;">
+                    <button id="wallet-back-btn" class="icon-btn" style="font-size: 20px;"><i class="fas fa-arrow-left"></i></button>
+                    <h2 style="padding-left: 0;">Comic Wallet</h2>
+                    <div style="width: 40px;"></div> </header>
+                <main class="main-content" style="padding: 16px;">
+                    <div class="profile-card" style="margin: 0 0 20px 0;">
+                        <i class="fas fa-shield-alt" style="font-size: 30px; color: var(--accent-color); margin-right: 10px;"></i>
+                        <div class="profile-info">
+                            <h3 id="wallet-expiry-date" style="font-size: 16px;">Expires on: --</h3>
+                            <small id="wallet-remaining-days" style="color: var(--text-secondary); font-size: 14px; margin-top: 4px; display: block;">Days Remaining: --</small>
+                        </div>
+                    </div>
+
+                    <h2 class="section-title" style="margin-bottom: 16px;">Renew Subscription</h2>
+
+                    <div class="plan-grid" id="subscription-plans-list">
+                        <p class="loading-text" id="plans-loading-text" style="margin-top: 20px;">Loading plans...</p>
+                    </div>
+
+                    <h2 class="section-title" style="margin-top: 30px; margin-bottom: 16px;">My Payment History</h2>
+                    <div id="payment-history-list">
+                        <p class="loading-text" id="payment-history-loading" style="margin-top: 20px;">Loading history...</p>
+                        </div>
+                    </main>
+            </div>
+            <div id="payment-page" class="page">
+                <header class="app-header" style="position: static;">
+                    <button id="payment-back-btn" class="icon-btn" style="font-size: 20px;"><i class="fas fa-arrow-left"></i></button>
+                    <h2 style="padding-left: 0;">Complete Payment</h2>
+                    <div style="width: 40px;"></div> </header>
+                <main class="main-content" style="padding: 20px;">
+                    <div style="text-align: center;">
+                        <p style="color: var(--text-secondary); margin-bottom: 10px;">You have selected:</p>
+                        <h1 id="payment-plan-name-display" style="margin-bottom: 20px;">Plan Name</h1>
+
+                        <div class="payment-details-box">
+                            <p style="margin-bottom: 10px;">Scan QR to Pay</p>
+                            <img id="qr-code-image" src="" alt="QR Code" style="width: 200px; height: 200px; border-radius: 8px; background-color: #fff; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto;">
+                            <p style="color: var(--text-secondary); margin-bottom: 5px;">Or pay using UPI ID:</p>
+                            
+                            <p id="upi-holder-name-text" style="font-size: 16px; margin-bottom: 10px; font-weight: 500;"></p>
+
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                                <strong id="upi-id-text" style="font-size: 18px; color: var(--accent-color); word-break: break-all;">upi-id@okbank</strong>
+                                <button id="copy-upi-btn" style="background: none; border: none; color: var(--text-secondary); font-size: 18px; cursor: pointer; padding: 5px; margin: 0;">
+                                    <i class="far fa-copy"></i>
+                                </button>
+                                </div>
+                        </div>
+
+                        <h2 class="section-title" style="margin-top: 30px; margin-bottom: 15px;">Submit Payment Proof</h2>
+                        <p id="payment-status-message" style="color: var(--accent-color); margin-bottom: 10px; min-height: 1.2em; font-weight: bold;"></p>
+
+                        <form id="payment-form">
+                             <input type="hidden" id="selected-plan-id">
+                             <input type="hidden" id="selected-plan-name">
+                            <div style="margin-bottom: 15px;">
+                                <input type="number" id="payment-amount" class="search-bar" placeholder="Amount" readonly required>
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <input type="tel" id="utr-id" class="search-bar" placeholder="Enter 12 Digit UTR ID" required pattern="[0-9]{12}" title="Please enter exactly 12 digits">
+                                </div>
+                            <button type="submit" id="submit-payment-btn" class="view-all-btn" style="width: 100%; padding: 12px; font-size: 16px; background-color: var(--accent-color); border-radius: 8px; color: #fff; margin-top: 20px;">
+                                Submit Proof
+                            </button>
+                            </form>
+                    </div>
+                </main>
+            </div>
+            </div> <div id="player-page" class="page"><main class="main-content"><div class="player-header"><button class="back-btn" id="back-btn"><i class="fas fa-chevron-down"></i></button></div><div class="player-body"><div class="cover-image-container"><img class="cover-image" id="player-cover-image" src="" alt="Cover Image"></div>
+            
+            <div class="title-fav-container">
+                <div class="story-info">
+                    <h1 class="title" id="player-title"></h1>
+                    <p class="author" id="player-author"></p>
+                </div>
+                <i class="fas fa-download" id="player-download-btn" style="font-size: 22px; color: var(--text-secondary); cursor: pointer; margin-right: 20px; flex-shrink: 0;"></i>
+                <i class="far fa-heart fav-icon-player" id="player-fav-icon"></i>
+            </div>
+            <div class="progress-bar-container" id="progress-container"><div class="progress-bar"><div class="progress" id="progress"></div></div><div class="time-stamps"><span id="current-time">0:00</span><span id="total-duration">0:00</span></div></div><div class="player-controls"><button class="icon-btn" id="shuffle-btn"><i class="fas fa-random"></i></button><button class="icon-btn" id="prev-btn"><i class="fas fa-step-backward"></i></button><button class="icon-btn play-btn" id="play-pause-btn"><i class="fas fa-play"></i></button><button class="icon-btn" id="next-btn"><i class="fas fa-step-forward"></i></button><button class="icon-btn" id="repeat-btn"><i class="fas fa-redo"></i></button></div></div></main></div>
+
+        <div id="mini-player">
+            <div id="mini-player-progress-bar"><div id="mini-player-progress"></div></div>
+            <img id="mini-player-cover" src="">
+            <div id="mini-player-info">
+                <div class="title" id="mini-player-title"></div>
+                <div class="author" id="mini-player-author"></div>
+            </div>
+            <div id="mini-player-controls">
+                <button id="mini-player-play-btn"><i class="fas fa-play"></i></button>
+                <button id="mini-player-close-btn"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+
+        <div id="mini-video-player">
+            <div id="mini-video-player-progress-bar"><div id="mini-video-player-progress"></div></div>
+            <img id="mini-video-player-thumbnail" src="">
+            <div id="mini-video-player-info">
+                <div class="title" id="mini-video-player-title"></div>
+            </div>
+            <div id="mini-video-player-controls">
+                <button id="mini-video-player-play-btn"><i class="fas fa-play"></i></button>
+                <button id="mini-video-player-close-btn"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+
+        <nav class="bottom-nav" id="bottom-nav"></nav>
+    </div>
+
+    <div id="popup-overlay" class="popup-overlay"></div>
+    <div id="popup-modal" class="popup-modal">
+        <i class="fas fa-check-circle" style="font-size: 48px; color: var(--accent-color); margin-bottom: 16px;"></i>
+        <h2 style="margin-bottom: 12px;">Subscription Activated!</h2>
+        <p style="color: var(--text-secondary); line-height: 1.5; margin-bottom: 24px;">
+            Congratulations! You have received a <strong id="popup-trial-days" style="color: var(--text-primary); font-size: 1.1em;">_</strong> day free trial. Enjoy full access to all stories and videos.
+        </p>
+        <button id="popup-close-btn" class="btn-single">Got it!</button>
+    </div>
+
+    <div id="payment-popup-overlay" class="popup-overlay"></div>
+    <div id="payment-popup-modal" class="popup-modal">
+        <i id="payment-popup-icon" class="fas fa-spinner fa-spin" style="font-size: 48px; color: var(--accent-color); margin-bottom: 16px;"></i>
+        <h2 id="payment-popup-title" style="margin-bottom: 12px;">Submitting...</h2>
+        <p id="payment-popup-message" style="color: var(--text-secondary); line-height: 1.5; margin-bottom: 24px;">
+            Please wait while we submit your payment proof.
+        </p>
+        <button id="payment-popup-close-btn" class="btn-single" style="display: none;">OK</button>
+    </div>
+
+    <div id="renewal-popup-overlay" class="popup-overlay"></div>
+    <div id="renewal-popup-modal" class="popup-modal">
+        <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #f0ad4e; margin-bottom: 16px;"></i>
+        <h2 style="margin-bottom: 12px;">Subscription Ending Soon!</h2>
+        <p style="color: var(--text-secondary); line-height: 1.5;">
+            Your subscription will expire in <strong id="renewal-days-left" style="color: var(--text-primary); font-size: 1.1em;">_</strong> days. Please renew to continue enjoying uninterrupted access.
+        </p>
+        <div class="popup-modal-buttons">
+            <button id="renewal-popup-later-btn" class="btn-secondary">Later</button>
+            <button id="renewal-popup-renew-btn" class="btn-primary">Renew Now</button>
+        </div>
+    </div>
+    
+    <div id="admin-notification-popup-overlay" class="popup-overlay"></div>
+    <div id="admin-notification-popup-modal" class="popup-modal">
+        <i class="fas fa-info-circle" style="font-size: 48px; color: var(--accent-color); margin-bottom: 16px;"></i>
+        <h2 style="margin-bottom: 12px;">Important Notice</h2>
+        <p id="admin-notification-message" style="color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap;"></p>
+        <button id="admin-notification-close-btn" class="btn-single">OK</button>
+    </div>
+
+
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-auth-compat.js"></script>
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyBTfuJBzwdLYTNL-eil95cvRyLPnGreP1A", authDomain: "sukoon-86970.firebaseapp.com", databaseURL: "https://sukoon-86970-default-rtdb.firebaseio.com", projectId: "sukoon-86970", storageBucket: "sukoon-86970.firebasestorage.app", messagingSenderId: "333829637580", appId: "1:333829637580:web:f13a39df3a6e69afc00969" };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+
+        const adminSettingsRef = database.ref('admin_settings');
+        const paymentRequestsRef = database.ref('payment_requests');
+        const globalPopupRef = database.ref('admin_settings/global_popup');
+
+
+        // --- START: NEW DOWNLOAD FUNCTION ---
+        // এটি React Native অ্যাপকে ডাউনলোডের জন্য মেসেজ পাঠাবে
+        function requestDownload(storyId, title, downloadUrl, coverImage) {
+            // চেক করুন যে অ্যাপটি React Native WebView-এর মধ্যে চলছে কিনা
+            if (window.ReactNativeWebView) {
+                
+                // React Native অ্যাপকে পাঠানোর জন্য একটি ডেটা অবজেক্ট তৈরি করুন
+                const downloadData = {
+                    type: 'DOWNLOAD_CONTENT', // এটি একটি চিহ্ন যে এটি একটি ডাউনলোড রিকোয়েস্ট
+                    id: storyId,
+                    url: downloadUrl,
+                    title: title,
+                    cover: coverImage
+                };
+                
+                // React Native-কে মেসেজ পাঠান
+                window.ReactNativeWebView.postMessage(JSON.stringify(downloadData));
+                
+                alert("ডাউনলোড শুরু হচ্ছে..."); // ব্যবহারকারীকে জানান
+
+            } else {
+                // যদি ব্রাউজারে খোলা হয়
+                alert("ডাউনলোড ফিচারটি শুধু মাত্র মোবাইল অ্যাপে কাজ করবে।");
+            }
+        }
+        // --- END: NEW DOWNLOAD FUNCTION ---
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // POPUP CONTROLS (Trial)
+            const popupOverlay = document.getElementById('popup-overlay');
+            const popupModal = document.getElementById('popup-modal');
+            const popupCloseBtn = document.getElementById('popup-close-btn');
+            const showTrialPopup = (days) => { document.getElementById('popup-trial-days').textContent = days; popupOverlay.style.display = 'block'; popupModal.style.display = 'block'; };
+            const hideTrialPopup = () => { popupOverlay.style.display = 'none'; popupModal.style.display = 'none'; };
+            popupCloseBtn.addEventListener('click', hideTrialPopup);
+
+            // Payment Popup Variables & Functions
+            const paymentPopupOverlay = document.getElementById('payment-popup-overlay');
+            const paymentPopupModal = document.getElementById('payment-popup-modal');
+            const paymentPopupIcon = document.getElementById('payment-popup-icon');
+            const paymentPopupTitle = document.getElementById('payment-popup-title');
+            const paymentPopupMessage = document.getElementById('payment-popup-message');
+            const paymentPopupCloseBtn = document.getElementById('payment-popup-close-btn');
+            let currentPaymentKeyListener = null;
+            const showPaymentPopup = (iconClass, title, message, showCloseBtn = false) => { paymentPopupIcon.className = `fas ${iconClass}` + (iconClass === 'fa-spinner' ? ' fa-spin' : ''); paymentPopupTitle.textContent = title; paymentPopupMessage.textContent = message; paymentPopupCloseBtn.style.display = showCloseBtn ? 'block' : 'none'; paymentPopupOverlay.style.display = 'block'; paymentPopupModal.style.display = 'block'; };
+            const hidePaymentPopup = () => { const title = paymentPopupTitle.textContent; paymentPopupOverlay.style.display = 'none'; paymentPopupModal.style.display = 'none'; if (currentPaymentKeyListener) { paymentRequestsRef.child(currentPaymentKeyListener.key).off('value', currentPaymentKeyListener.listener); currentPaymentKeyListener = null; } if (title === 'Submitted!' || title === 'Payment Approved!' || title === 'Submission Failed') { navigateTo('wallet-page'); } };
+            paymentPopupCloseBtn.addEventListener('click', hidePaymentPopup);
+
+            // Renewal Popup Variables & Functions
+            const renewalPopupOverlay = document.getElementById('renewal-popup-overlay');
+            const renewalPopupModal = document.getElementById('renewal-popup-modal');
+            const renewalPopupLaterBtn = document.getElementById('renewal-popup-later-btn');
+            const renewalPopupRenewBtn = document.getElementById('renewal-popup-renew-btn');
+            let renewalReminderDays = 0;
+            const showRenewalPopup = (daysLeft) => { document.getElementById('renewal-days-left').textContent = daysLeft; renewalPopupOverlay.style.display = 'block'; renewalPopupModal.style.display = 'block'; sessionStorage.setItem('renewalPopupShown', 'true'); };
+            const hideRenewalPopup = () => { renewalPopupOverlay.style.display = 'none'; renewalPopupModal.style.display = 'none'; };
+            renewalPopupLaterBtn.addEventListener('click', hideRenewalPopup);
+            renewalPopupRenewBtn.addEventListener('click', () => { hideRenewalPopup(); navigateTo('wallet-page'); });
+
+            // Admin Notification Popup Variables & Functions
+            const adminNotificationPopupOverlay = document.getElementById('admin-notification-popup-overlay');
+            const adminNotificationPopupModal = document.getElementById('admin-notification-popup-modal');
+            const adminNotificationMessage = document.getElementById('admin-notification-message');
+            const adminNotificationCloseBtn = document.getElementById('admin-notification-close-btn');
+            let globalPopupData = null;
+             const showAdminNotificationPopup = (message) => { adminNotificationMessage.textContent = message; adminNotificationPopupOverlay.style.display = 'block'; adminNotificationPopupModal.style.display = 'block'; sessionStorage.setItem('adminPopupShown', 'true'); };
+             const hideAdminNotificationPopup = () => { adminNotificationPopupOverlay.style.display = 'none'; adminNotificationPopupModal.style.display = 'none'; };
+            adminNotificationCloseBtn.addEventListener('click', hideAdminNotificationPopup);
+
+
+            const cloudflareBaseUrl = 'https://pub-1c1ee5cfcd4e4f979f7b377f41190793.r2.dev/';
+
+            let allStories = [], allCategories = [], categoryObjects = [], currentlyPlayingList = [], allVideos = [];
+            let currentStoryId = null, currentStoryIndex = 0, activeCategory = 'All', isPlaying = false, isShuffle = false, isRepeat = false, isPlayerSessionActive = false, isVideoPlayerSessionActive = false;
+            let sliderInterval;
+
+            let userLanguage = null;
+            let userExpiresAt = null;
+            let lastActivePage = 'home-page';
+            let categoriesListener, storiesListener, videosListener;
+
+            const contentPages = document.querySelectorAll('.page-container .page');
+            const appContainer = document.getElementById('app-container');
+            const bottomNav = document.getElementById('bottom-nav');
+
+            const audio = document.getElementById('audio-player');
+            const playerPage = document.getElementById('player-page');
+            const miniPlayer = document.getElementById('mini-player');
+            const miniPlayerPlayBtn = document.getElementById('mini-player-play-btn');
+            const miniPlayerCloseBtn = document.getElementById('mini-player-close-btn');
+            const playerFavIcon = document.getElementById('player-fav-icon');
+            const miniPlayerProgress = document.getElementById('mini-player-progress');
+
+            const videoPlayerPage = document.getElementById('video-player-page');
+            const videoElement = document.getElementById('video-player-element');
+            const miniVideoPlayer = document.getElementById('mini-video-player');
+            const miniVideoPlayerPlayBtn = document.getElementById('mini-video-player-play-btn');
+            const miniVideoPlayerCloseBtn = document.getElementById('mini-video-player-close-btn');
+            const miniVideoPlayerProgress = document.getElementById('mini-video-player-progress');
+
+            const getFavourites = () => JSON.parse(localStorage.getItem('favStories')) || [];
+            const saveFavourites = (favs) => localStorage.setItem('favStories', JSON.stringify(favs));
+            const formatTime = (seconds) => { if(isNaN(seconds)) return '0:00'; const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60); return `${m}:${s < 10 ? '0' : ''}${s}`; };
+
+            const navigateTo = (pageId) => {
+                if (pageId === 'player-page' || pageId === 'video-player-page') {
+                    document.getElementById(pageId).classList.add('active');
+                } else {
+                    contentPages.forEach(p => p.classList.toggle('active', p.id === pageId));
+                    playerPage.classList.remove('active');
+                    videoPlayerPage.classList.remove('active');
+                }
+                const activePageElement = document.getElementById(pageId);
+                if (activePageElement && activePageElement.classList.contains('active')) {
+                    if (pageId === 'categories-page') renderCategories();
+                    if (pageId === 'video-page') renderVideoPage();
+                    if (pageId === 'favourites-page') renderFavouritesPage();
+                    if (pageId === 'trending-page') renderTrendingPage();
+                    if (pageId === 'wallet-page') renderWalletPage();
+                    if (pageId === 'home-page') { checkRenewalPopup(); checkAdminNotificationPopup(); }
+                }
+                bottomNav.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i.dataset.page === pageId));
+
+                if (pageId !== 'auth-page' && pageId !== 'language-page' && pageId !== 'expired-page' && pageId !== 'subscription-page' && pageId !== 'player-page' && pageId !== 'video-player-page' && pageId !== 'wallet-page' && pageId !== 'payment-page') { lastActivePage = pageId; }
+            };
+
+            const createStoryCard = (story, storyList) => { const isFav = getFavourites().includes(story.id); const card = document.createElement('div'); card.className = 'story-card'; card.innerHTML = `<i class="${isFav ? 'fas' : 'far'} fa-heart fav-icon-card ${isFav ? 'active' : ''}" data-story-id="${story.id}"></i><img src="${story.cover}" alt="${story.title}" onerror="this.src='placeholder.png'"><div class="title">${story.title}</div><div class="details">${story.author}</div>`; card.querySelector('img').addEventListener('click', () => { currentlyPlayingList = storyList; openPlayer(currentlyPlayingList.findIndex(s => s.id === story.id)); }); card.querySelector('.fav-icon-card').addEventListener('click', (e) => { e.stopPropagation(); toggleFavourite(story.id); }); return card; };
+            const createVideoItemElement = (video) => { const videoItem = document.createElement('div'); videoItem.className = 'video-item'; videoItem.innerHTML = `<div class="video-thumbnail-container"><img src="${video.thumbnail}" alt="${video.title}" class="video-thumbnail" onerror="this.src='placeholder.png'"></div><div class="video-info"><div class="video-title">${video.title}</div></div>`; videoItem.addEventListener('click', () => openVideoPlayer(video)); return videoItem; };
+            const renderStoryGrid = (container, storyList) => { container.innerHTML = ''; if (!storyList || storyList.length === 0) { container.innerHTML = '<p class="loading-text">No stories found.</p>'; return; } storyList.forEach(story => container.appendChild(createStoryCard(story, storyList))); };
+            const renderTrendingSection = () => { const container = document.getElementById('trending-stories-container'); const trending = allStories.filter(s => s.isTrending); document.getElementById('trending-section').style.display = trending.length > 0 ? 'block' : 'none'; container.innerHTML = ''; trending.forEach(s => container.appendChild(createStoryCard(s, trending))); };
+            const renderHomePageContent = () => { const filtered = activeCategory === 'All' ? allStories : allStories.filter(s => s.category === activeCategory); renderStoryGrid(document.getElementById('stories-list'), filtered); document.getElementById('story-section-title').textContent = activeCategory; };
+            const performSearch = () => { const term = document.getElementById('search-bar-page').value.toLowerCase(); const container = document.getElementById('search-results-list'); if (!term) { container.innerHTML = '<p class="loading-text">Start typing...</p>'; return; } renderStoryGrid(container, allStories.filter(s => s.title.toLowerCase().includes(term) || s.author.toLowerCase().includes(term))); };
+            const performVideoSearch = () => { const term = document.getElementById('video-search-bar-page').value.toLowerCase(); const container = document.getElementById('video-search-results-list'); container.innerHTML = ''; if (!term) { container.innerHTML = '<p class="loading-text">Start typing to search videos...</p>'; return; } const results = allVideos.filter(v => v.title.toLowerCase().includes(term)); if (!results || results.length === 0) { container.innerHTML = '<p class="loading-text">No videos found.</p>'; return; } results.forEach(video => container.appendChild(createVideoItemElement(video))); };
+            const renderTrendingPage = () => renderStoryGrid(document.getElementById('trending-page-grid'), allStories.filter(s => s.isTrending));
+            const renderVideoPage = () => { const container = document.getElementById('video-list-container'); container.innerHTML = ''; if (!allVideos || allVideos.length === 0) { container.innerHTML = '<p class="loading-text">No videos found.</p>'; return; } allVideos.forEach(video => container.appendChild(createVideoItemElement(video))); };
+            const renderCategories = () => { const container = document.getElementById('full-category-list'); if (!container) return; container.innerHTML = ''; if (!categoryObjects || categoryObjects.length === 0) { container.innerHTML = '<p class="loading-text">No categories found.</p>'; return; } categoryObjects.forEach(cat => { const item = document.createElement('div'); item.className = 'category-list-item'; item.style.backgroundImage = `url(${cat.image})`; item.innerHTML = `<span>${cat.name}</span>`; item.addEventListener('click', () => { activeCategory = cat.name; navigateTo('home-page'); renderHomePageContent(); }); container.appendChild(item); }); };
+            const renderFavouritesPage = () => renderStoryGrid(document.getElementById('favourites-list'), allStories.filter(s => getFavourites().includes(s.id)));
+            const toggleFavourite = (storyId) => { let favs = getFavourites(); if (favs.includes(storyId)) favs = favs.filter(id => id !== storyId); else favs.push(storyId); saveFavourites(favs); updateFavouriteIcons(storyId); };
+            const updateFavouriteIcons = (storyId) => { const isFav = getFavourites().includes(storyId); document.querySelectorAll(`.fav-icon-card[data-story-id="${storyId}"]`).forEach(icon => { icon.className = `${isFav ? 'fas' : 'far'} fa-heart fav-icon-card ${isFav ? 'active' : ''}`; }); if (currentStoryId === storyId) playerFavIcon.className = `${isFav ? 'fas' : 'far'} fa-heart fav-icon-player ${isFav ? 'active' : ''}`; };
+            const showMiniPlayer = () => { miniPlayer.classList.add('active'); appContainer.classList.add('with-mini-player'); };
+            const hideMiniPlayer = () => { pauseAudio(); audio.src = ''; isPlayerSessionActive = false; miniPlayer.classList.remove('active'); appContainer.classList.remove('with-mini-player'); };
+            
+            // --- START: MODIFIED loadStory FUNCTION ---
+            const loadStory = (storyIndex) => {
+                if(!currentlyPlayingList || storyIndex < 0 || storyIndex >= currentlyPlayingList.length) return;
+                isPlayerSessionActive = true;
+                currentStoryIndex = storyIndex;
+                const story = currentlyPlayingList[storyIndex];
+                currentStoryId = story.id;
+                document.getElementById('player-cover-image').src = story.cover;
+                document.getElementById('player-title').textContent = story.title;
+                document.getElementById('player-author').textContent = story.author;
+                audio.src = cloudflareBaseUrl + story.audio;
+                updateFavouriteIcons(story.id);
+                document.getElementById('mini-player-cover').src = story.cover;
+                document.getElementById('mini-player-title').textContent = story.title;
+                document.getElementById('mini-player-author').textContent = story.author;
+                
+                // --- NEW: Download Button Logic ---
+                const downloadBtn = document.getElementById('player-download-btn');
+                downloadBtn.onclick = () => {
+                    const fullDownloadUrl = cloudflareBaseUrl + story.audio;
+                    requestDownload(story.id, story.title, fullDownloadUrl, story.cover);
+                };
+                // --- END: NEW Download Button Logic ---
+                
+                if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: story.title, artist: story.author, artwork: [{ src: story.cover, sizes: '512x512', type: 'image/jpeg' }] }); ['play', 'pause', 'nexttrack', 'previoustrack'].forEach(a => { navigator.mediaSession.setActionHandler(a, window[a==='play'?'playAudio':a==='pause'?'pauseAudio':a==='nexttrack'?'nextStory':'prevStory']); }); }
+            };
+            // --- END: MODIFIED loadStory FUNCTION ---
+            
+            const openPlayer = (storyIndex) => { const now = Date.now(); if (userExpiresAt && now > userExpiresAt) { navigateTo('subscription-page'); return; } if(isVideoPlayerSessionActive) hideMiniVideoPlayer(); loadStory(storyIndex); navigateTo('player-page'); playAudio(); };
+            const playAudio = () => { if (!audio.src) return; isPlaying = true; document.getElementById('play-pause-btn').innerHTML = '<i class="fas fa-pause"></i>'; miniPlayerPlayBtn.innerHTML = '<i class="fas fa-pause"></i>'; audio.play().catch(e => console.error("Audio play failed:", e)); if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "playing"; };
+            const pauseAudio = () => { isPlaying = false; document.getElementById('play-pause-btn').innerHTML = '<i class="fas fa-play"></i>'; miniPlayerPlayBtn.innerHTML = '<i class="fas fa-play"></i>'; audio.pause(); if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "paused"; };
+            const nextStory = () => { loadStory(isShuffle ? Math.floor(Math.random() * currentlyPlayingList.length) : (currentStoryIndex + 1) % currentlyPlayingList.length); playAudio(); };
+            const prevStory = () => { loadStory((currentStoryIndex - 1 + currentlyPlayingList.length) % currentlyPlayingList.length); playAudio(); };
+            const updateAudioProgress = (e) => { const { duration, currentTime } = e.srcElement; if(duration) { const p = (currentTime / duration) * 100; document.getElementById('progress').style.width = `${p}%`; miniPlayerProgress.style.width = `${p}%`; document.getElementById('total-duration').textContent = formatTime(duration); document.getElementById('current-time').textContent = formatTime(currentTime); }};
+            const setAudioProgress = (e) => { if(audio.duration) audio.currentTime = (e.offsetX / e.currentTarget.clientWidth) * audio.duration; };
+            const showMiniVideoPlayer = () => { miniVideoPlayer.classList.add('active'); appContainer.classList.add('with-mini-video-player'); };
+            const hideMiniVideoPlayer = () => { videoElement.pause(); videoElement.src = ''; isVideoPlayerSessionActive = false; miniVideoPlayer.classList.remove('active'); appContainer.classList.remove('with-mini-video-player'); };
+            
+            // --- START: MODIFIED openVideoPlayer FUNCTION ---
+            const openVideoPlayer = (video) => {
+                if(!video || !video.url) return;
+                const now = Date.now();
+                if (userExpiresAt && now > userExpiresAt) {
+                    navigateTo('subscription-page');
+                    return;
+                }
+                if(isPlayerSessionActive) hideMiniPlayer();
+                isVideoPlayerSessionActive = true;
+                videoElement.src = cloudflareBaseUrl + video.url;
+                videoElement.play().catch(e => console.error("Video play failed:", e));
+                document.getElementById('playing-video-title').textContent = video.title || '';
+                const descElement = document.getElementById('playing-video-description');
+                descElement.textContent = video.description || '';
+                descElement.style.display = video.description ? 'block' : 'none';
+                document.getElementById('mini-video-player-thumbnail').src = video.thumbnail || '';
+                document.getElementById('mini-video-player-title').textContent = video.title || '';
+                
+                // --- NEW: Video Download Button Logic ---
+                const videoDownloadBtn = document.getElementById('video-download-btn');
+                videoDownloadBtn.onclick = () => {
+                    const fullVideoUrl = cloudflareBaseUrl + video.url;
+                    requestDownload(video.id, video.title, fullVideoUrl, video.thumbnail);
+                };
+                // --- END: NEW Video Download Button Logic ---
+                
+                const upNextContainer = document.getElementById('up-next-video-list');
+                upNextContainer.innerHTML = '';
+                allVideos.filter(v => v.id !== video.id).forEach(v => upNextContainer.appendChild(createVideoItemElement(v)));
+                navigateTo('video-player-page');
+            };
+            // --- END: MODIFIED openVideoPlayer FUNCTION ---
+            
+            const syncVideoPlayPauseIcons = () => { const icon = videoElement.paused ? 'fa-play' : 'fa-pause'; miniVideoPlayerPlayBtn.innerHTML = `<i class="fas ${icon}"></i>`; };
+            const updateVideoProgress = () => { if (videoElement.duration) { const p = (videoElement.currentTime / videoElement.duration) * 100; miniVideoPlayerProgress.style.width = `${p}%`; }};
+            const toggleVideoPlay = () => { if (videoElement.paused) videoElement.play().catch(e => console.error("Video play failed:", e)); else videoElement.pause(); };
+            const renderSlider = () => { const container = document.getElementById('slider-container'); if (sliderInterval) clearInterval(sliderInterval); container.innerHTML = ''; const sliderStories = (allStories || []).filter(s => s.showInSlider); const sliderVideos = (allVideos || []).filter(v => v.showInSlider); const combinedItems = [...sliderStories, ...sliderVideos].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); if (combinedItems.length === 0) { container.style.display = 'none'; return; } container.style.display = 'block'; const wrapper = document.createElement('div'); wrapper.className = 'slides-wrapper'; combinedItems.forEach(item => { const slide = document.createElement('div'); slide.className = 'slide'; if (item.audio) { slide.innerHTML = `<img src="${item.cover}" alt="Slider Image" onerror="this.src='placeholder.png'">`; const storyIndex = allStories.findIndex(s => s.id === item.id); if (storyIndex > -1) { slide.addEventListener('click', () => { currentlyPlayingList = allStories; openPlayer(storyIndex); }); } } else if (item.url) { slide.innerHTML = `<img src="${item.thumbnail}" alt="Slider Image" onerror="this.src='placeholder.png'">`; slide.addEventListener('click', () => openVideoPlayer(item)); } wrapper.appendChild(slide); }); container.appendChild(wrapper); let index = 0; const show = i => wrapper.style.transform = `translateX(-${i * 100}%)`; if (combinedItems.length > 1) { sliderInterval = setInterval(() => { index = (index + 1) % combinedItems.length; show(index); }, 4000); } };
+            function loadCachedData() { if (!userLanguage) return; try { const cs = localStorage.getItem(`cachedStories_${userLanguage}`); if (cs) { allStories = JSON.parse(cs); renderSlider(); renderHomePageContent(); renderTrendingSection(); if (document.getElementById('favourites-page').classList.contains('active')) renderFavouritesPage(); if (document.getElementById('trending-page').classList.contains('active')) renderTrendingPage(); } } catch (e) { console.error("Err cache stories:", e); } try { const cv = localStorage.getItem(`cachedVideos_${userLanguage}`); if (cv) { allVideos = JSON.parse(cv); renderSlider(); if (document.getElementById('video-page').classList.contains('active')) renderVideoPage(); } } catch (e) { console.error("Err cache videos:", e); } try { const cc = localStorage.getItem(`cachedCategories_${userLanguage}`); if (cc) { categoryObjects = JSON.parse(cc); if (document.getElementById('categories-page').classList.contains('active')) renderCategories(); } } catch (e) { console.error("Err cache categories:", e); } }
+            function loadInitialData() { if (!userLanguage) return; loadCachedData(); adminSettingsRef.once('value').then(snap => { const s = snap.val() || {}; renewalReminderDays = s.renewalReminderDays || 0; globalPopupData = s.global_popup || null; checkRenewalPopup(); checkAdminNotificationPopup(); }); if (categoriesListener) database.ref('categories').off('value', categoriesListener); if (storiesListener) database.ref('stories').orderByChild('createdAt').off('value', storiesListener); if (videosListener) database.ref('videos').orderByChild('createdAt').off('value', videosListener); categoriesListener = database.ref('categories').on('value', snap => { categoryObjects = snap.val() ? Object.values(snap.val()).filter(c => c.language === userLanguage) : []; try { localStorage.setItem(`cachedCategories_${userLanguage}`, JSON.stringify(categoryObjects)); } catch(e) { console.error("Err save cat cache:", e); } if (document.getElementById('categories-page').classList.contains('active')) renderCategories(); }); storiesListener = database.ref('stories').orderByChild('createdAt').on('value', snap => { let s = []; snap.forEach(c => { s.push({ id: c.key, ...c.val() }); }); allStories = s.reverse().filter(st => st.language === userLanguage); try { localStorage.setItem(`cachedStories_${userLanguage}`, JSON.stringify(allStories)); } catch(e) { console.error("Err save story cache:", e); } renderSlider(); renderHomePageContent(); renderTrendingSection(); if (document.getElementById('search-page').classList.contains('active')) performSearch(); if (document.getElementById('favourites-page').classList.contains('active')) renderFavouritesPage(); if (document.getElementById('trending-page').classList.contains('active')) renderTrendingPage(); }); videosListener = database.ref('videos').orderByChild('createdAt').on('value', snap => { let v = []; snap.forEach(c => { v.push({ id: c.key, ...c.val() }); }); allVideos = v.reverse().filter(vi => vi.language === userLanguage); try { localStorage.setItem(`cachedVideos_${userLanguage}`, JSON.stringify(allVideos)); } catch(e) { console.error("Err save video cache:", e); } renderSlider(); if (document.getElementById('video-page').classList.contains('active')) renderVideoPage(); if (document.getElementById('video-search-page').classList.contains('active')) performVideoSearch(); }); }
+            const renderWalletPage = () => { const expEl = document.getElementById('wallet-expiry-date'); const remEl = document.getElementById('wallet-remaining-days'); if (userExpiresAt) { const expiryDate = new Date(userExpiresAt); expEl.textContent = 'Expires on: ' + expiryDate.toLocaleDateString(); const now = Date.now(); const diff = userExpiresAt - now; if (diff < 0) { const dE = Math.floor(Math.abs(diff) / 86400000); remEl.textContent = `Expired ${dE} days ago`; remEl.style.color = '#e85d75'; expEl.style.color = '#e85d75'; } else { const dR = Math.ceil(diff / 86400000); remEl.textContent = `Days Remaining: ${dR}`; remEl.style.color = 'var(--accent-color)'; expEl.style.color = 'var(--accent-color)'; } } else { expEl.textContent = 'No active subscription'; remEl.textContent = 'Please contact support to buy a plan.'; remEl.style.color = 'var(--text-secondary)'; expEl.style.color = 'var(--text-secondary)'; } loadSubscriptionPlans(); loadPaymentHistory(); };
+            const loadSubscriptionPlans = () => { const pList = document.getElementById('subscription-plans-list'); const pLoad = document.getElementById('plans-loading-text'); pList.innerHTML = ''; pList.appendChild(pLoad); pLoad.style.display = 'block'; adminSettingsRef.once('value').then(snap => { const s = snap.val(); if (!s) { pLoad.textContent = 'Could not load plans.'; return; } const plans = s.subscriptionPlans; pLoad.style.display = 'none'; if (!plans || Object.keys(plans).length === 0) { pList.innerHTML = '<p class="loading-text" style="margin-top: 20px;">No subscription plans available.</p>'; return; } for (const pId in plans) { const p = plans[pId]; const card = document.createElement('div'); card.className = 'plan-card'; card.innerHTML = `<div class="plan-card-info"><div class="plan-name">${p.name || 'Plan'}</div><div class="plan-details">₹${p.price || 0} for ${p.days || 0} days</div></div><button class="buy-plan-btn" data-plan-id="${pId}" data-plan-name="${p.name || ''}" data-plan-price="${p.price || 0}" data-plan-upi-id="${p.planUPIID || ''}" data-plan-qr-url="${p.planQRCodeURL || ''}" data-plan-holder-name="${p.planHolderName || ''}">Buy</button>`; pList.appendChild(card); } }).catch(err => { console.error("Err loading plans:", err); pLoad.textContent = 'Failed to load plans.'; }); };
+            const loadPaymentHistory = () => { const u = auth.currentUser; if (!u) return; const hList = document.getElementById('payment-history-list'); const hLoad = document.getElementById('payment-history-loading'); hList.innerHTML = ''; hList.appendChild(hLoad); hLoad.style.display = 'block'; paymentRequestsRef.orderByChild('userId').equalTo(u.uid).once('value').then(snap => { const d = snap.val(); if (!d) { hLoad.textContent = 'No payment history found.'; return; } hLoad.style.display = 'none'; const keys = Object.keys(d).sort((a, b) => d[b].createdAt - d[a].createdAt); for (const k of keys) { const r = d[k]; const date = new Date(r.createdAt).toLocaleDateString(); let sC = ''; if (r.status === 'pending') sC = '#007bff'; else if (r.status === 'approved') sC = 'var(--accent-color)'; else if (r.status === 'rejected') sC = '#e85d75'; const item = document.createElement('div'); item.className = `payment-history-item status-${r.status}`; item.innerHTML = `<div class="plan-name">${r.planName} (₹${r.amount})</div><div class="details">UTR: ${r.utr}<br>Date: ${date}</div><span class="status" style="color: ${sC};">${r.status}</span>`; hList.appendChild(item); } }).catch(err => { console.error("Err loading pay history:", err); hLoad.textContent = 'Failed to load history.'; }); };
+            function populateProfileData(user, userData) { if(!user || !userData) return; document.getElementById('profile-email-display').textContent = user.email; document.getElementById('profile-name-display').textContent = userData.name || user.displayName || user.email.split('@')[0]; document.querySelector('.profile-avatar').textContent = (userData.name || user.displayName || user.email)[0].toUpperCase(); const expAt = userData.expiresAt || null; userExpiresAt = expAt; const wDet = document.getElementById('comic-wallet-details'); if (expAt) { const expDate = new Date(expAt); const now = Date.now(); if (now > expDate) { wDet.textContent = 'Expired on: ' + expDate.toLocaleDateString(); wDet.style.color = '#e85d77'; } else { wDet.textContent = 'Expires on: ' + expDate.toLocaleDateString(); wDet.style.color = 'var(--accent-color)'; } } else { wDet.textContent = 'Validity not set'; wDet.style.color = 'var(--text-secondary)'; } checkRenewalPopup(); checkAdminNotificationPopup(); }
+            function checkRenewalPopup() { if (!userExpiresAt || renewalReminderDays <= 0 || sessionStorage.getItem('renewalPopupShown') === 'true' || !document.getElementById('home-page').classList.contains('active')) return; const now = Date.now(); const diff = userExpiresAt - now; if (diff <= 0) return; const daysRem = Math.ceil(diff / 86400000); if (daysRem <= renewalReminderDays) showRenewalPopup(daysRem); }
+            function checkAdminNotificationPopup() { const cu = auth.currentUser; if (!globalPopupData || !globalPopupData.message || sessionStorage.getItem('adminPopupShown') === 'true' || !cu || !document.getElementById('home-page').classList.contains('active')) return; let show = false; if (globalPopupData.target === 'all') { show = true; } else if (globalPopupData.target === 'specific' && globalPopupData.target_user_email) { if (cu.email && cu.email.toLowerCase() === globalPopupData.target_user_email.toLowerCase()) { show = true; } } if (show) showAdminNotificationPopup(globalPopupData.message); }
+
+
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    // Try load profile from cache
+                    try { const cu = localStorage.getItem(`cachedUser_${user.uid}`); if(cu) { populateProfileData(user, JSON.parse(cu)); } } catch(e) {}
+
+                    // Set up online presence
+                    const userStatusRef = database.ref(`/users/${user.uid}`);
+                    const presenceRef = database.ref('.info/connected');
+                    presenceRef.on('value', (snap) => {
+                         if (snap.val() === true) {
+                            userStatusRef.update({ isOnline: true, lastSeen: firebase.database.ServerValue.TIMESTAMP });
+                            userStatusRef.onDisconnect().update({ isOnline: false, lastSeen: firebase.database.ServerValue.TIMESTAMP });
+                         }
+                    });
+
+
+                    // Listen for user data updates
+                    userRef = database.ref('users/' + user.uid); // Define userRef here
+                    userRef.on('value', snapshot => { 
+                        const userData = snapshot.val();
+                        if (!userData) return; 
+                        try { localStorage.setItem(`cachedUser_${user.uid}`, JSON.stringify(userData)); } catch(e) {}
+                        populateProfileData(user, userData); // Update UI and check popups
+                        const expAt = userData.expiresAt || null; userExpiresAt = expAt;
+                        if (document.getElementById('wallet-page').classList.contains('active')) { renderWalletPage(); }
+                        if (userData && userData.language) {
+                            if (userLanguage !== userData.language) { userLanguage = userData.language; loadInitialData(); }
+                            if (!document.querySelector('.page.active') || document.getElementById('language-page').classList.contains('active') || document.getElementById('auth-page').classList.contains('active')) {
+                                navigateTo('home-page'); bottomNav.style.display = 'flex';
+                                const tDays = sessionStorage.getItem('showTrialPopup'); if (tDays) { showTrialPopup(tDays); sessionStorage.removeItem('showTrialPopup'); }
+                                // Initial popup checks already done in navigateTo & populateProfileData
+                            }
+                        } else { if (!userData.language) { navigateTo('language-page'); bottomNav.style.display = 'none'; } }
+                    }, error => { console.error("Err reading user data:", error); auth.signOut(); });
+                    userRef.once('value', iSnap => { if (!iSnap.val()) { userRef.set({ name: user.displayName || user.email.split('@')[0], mobile: '', email: user.email, createdAt: firebase.database.ServerValue.TIMESTAMP }).then(() => { navigateTo('language-page'); bottomNav.style.display = 'none'; }); } });
+
+                } else { // User logged out
+                    userExpiresAt = null; navigateTo('auth-page'); bottomNav.style.display = 'none';
+                    if (categoriesListener) database.ref('categories').off('value', categoriesListener);
+                    if (storiesListener) database.ref('stories').orderByChild('createdAt').off('value', storiesListener);
+                    if (videosListener) database.ref('videos').orderByChild('createdAt').off('value', videosListener);
+                    
+                    let lastUID = null; try { lastUID = auth.currentUser?.uid; } catch(e) {}
+                    if(lastUID) { database.ref('users/' + lastUID).off(); localStorage.removeItem(`cachedUser_${lastUID}`); }
+                    
+                    // --- Cancel disconnect operations if user logs out manually ---
+                    database.ref('.info/connected').off(); // Stop listening to connection state
+                    // Note: Cannot easily cancel specific onDisconnect() operations after logout. 
+                    // Firebase handles server-side cleanup. Client-side state is reset below.
+                    
+                    try { if(userLanguage) { localStorage.removeItem(`cachedStories_${userLanguage}`); localStorage.removeItem(`cachedVideos_${userLanguage}`); localStorage.removeItem(`cachedCategories_${userLanguage}`); } } catch(e) {}
+                    userLanguage = null; sessionStorage.removeItem('renewalPopupShown'); sessionStorage.removeItem('adminPopupShown'); globalPopupData = null;
+                }
+            });
+
+            // ... (Rest of event listeners: auth, password toggle, language, logout, navigation, player, etc.) ...
+            document.getElementById('toggle-auth-form-btn').addEventListener('click', () => { const loginForm = document.getElementById('login-form'); const regForm = document.getElementById('register-form'); const btn = document.getElementById('toggle-auth-form-btn'); const errorEl = document.getElementById('auth-error'); errorEl.textContent = ''; if (loginForm.style.display === 'none') { loginForm.style.display = 'block'; regForm.style.display = 'none'; btn.textContent = 'Need an account? Register'; } else { loginForm.style.display = 'none'; regForm.style.display = 'block'; btn.textContent = 'Already have an account? Login'; } });
+            const authError = document.getElementById('auth-error');
+            function isValidMobileNumber(mobile) { const indiaRegex = /^(?:\+91)?[6-9]\d{9}$/; const bangladeshRegex = /^(?:01|\+8801)[3-9]\d{8}$/; return indiaRegex.test(mobile) || bangladeshRegex.test(mobile); }
+            document.getElementById('login-form').addEventListener('submit', e => { e.preventDefault(); authError.textContent = ''; const email = document.getElementById('login-email').value.trim(); const password = document.getElementById('login-password').value.trim(); if (!email || !password) { authError.textContent = 'Email and password required.'; return; } authError.textContent = 'Logging in...'; auth.signInWithEmailAndPassword(email, password).catch(err => { if (['auth/user-not-found', 'auth/wrong-password', 'auth/invalid-credential'].includes(err.code)) { authError.textContent = 'Incorrect email or password.'; } else if (err.code === 'auth/too-many-requests') { authError.textContent = 'Too many attempts. Try again later.'; } else { authError.textContent = 'An error occurred. Try again.'; } }); });
+            document.getElementById('register-form').addEventListener('submit', e => { e.preventDefault(); authError.textContent = ''; const name = document.getElementById('register-name').value.trim(); const mobile = document.getElementById('register-mobile').value.trim(); const email = document.getElementById('register-email').value.trim(); const password = document.getElementById('register-password').value.trim(); if (!name || !mobile || !email || !password) { authError.textContent = 'All fields are required.'; return; } if (password.length < 6) { authError.textContent = 'Password must be at least 6 characters.'; return; } if (!isValidMobileNumber(mobile)) { authError.textContent = 'Please enter a valid Indian or Bangladeshi mobile number.'; return; } authError.textContent = 'Registering...'; auth.createUserWithEmailAndPassword(email, password).then(uc => { const u = uc.user; u.updateProfile({ displayName: name }).then(() => { database.ref('users/' + u.uid).set({ name: name, mobile: mobile, email: u.email, createdAt: firebase.database.ServerValue.TIMESTAMP }); }); authError.textContent = ''; }).catch(err => { if (err.code === 'auth/email-already-in-use') { authError.textContent = 'Email already in use.'; } else if (err.code === 'auth/invalid-email') { authError.textContent = 'Invalid email.'; } else if (err.code === 'auth/weak-password') { authError.textContent = 'Password is too weak.'; } else { authError.textContent = 'An error occurred.'; } }); });
+            document.querySelectorAll('.toggle-password').forEach(t => { t.addEventListener('click', () => { const iId = t.dataset.target; const i = document.getElementById(iId); if (i.type === 'password') { i.type = 'text'; t.classList.replace('fa-eye', 'fa-eye-slash'); } else { i.type = 'password'; t.classList.replace('fa-eye-slash', 'fa-eye'); } }); });
+            document.querySelectorAll('.lang-select-btn').forEach(b => { b.addEventListener('click', () => { const l = b.dataset.lang; const u = auth.currentUser; if (!u) return; const uRef = database.ref('users/' + u.uid); uRef.once('value').then(s => { const d = s.val(); const hS = d && d.expiresAt; const up = { language: l }; if (hS) { uRef.update(up); } else { database.ref('admin_settings/defaultTrialDays').once('value').then(sn => { const tD = sn.val() || 0; if (tD > 0) { const n = new Date(); const eD = new Date(n.setDate(n.getDate() + tD)); up.expiresAt = eD.getTime(); sessionStorage.setItem('showTrialPopup', tD); } uRef.update(up); }).catch(er => { uRef.update(up); }); } }); }); });
+            document.getElementById('logout-btn').addEventListener('click', () => { auth.signOut(); });
+            document.getElementById('expired-logout-btn').addEventListener('click', () => { auth.signOut(); });
+            document.getElementById('subscription-back-btn').addEventListener('click', () => { navigateTo(lastActivePage); });
+            document.getElementById('wallet-back-btn').addEventListener('click', () => { navigateTo('profile-page'); });
+            document.getElementById('nav-to-wallet-btn').addEventListener('click', () => { navigateTo('wallet-page'); });
+            const playStoreUrl = '#'; // Replace with actual URL
+            document.getElementById('subscription-plans-list').addEventListener('click', e => { if (e.target.classList.contains('buy-plan-btn')) { const ds = e.target.dataset; document.getElementById('payment-plan-name-display').textContent = `${ds.planName} - ₹${ds.planPrice}`; document.getElementById('selected-plan-id').value = ds.planId; document.getElementById('selected-plan-name').value = ds.planName; document.getElementById('payment-amount').value = ds.planPrice; document.getElementById('qr-code-image').src = ds.planQrUrl || ''; document.getElementById('upi-id-text').textContent = ds.planUpiId || 'N/A'; const hNE = document.getElementById('upi-holder-name-text'); if (ds.planHolderName) { hNE.textContent = `Name: ${ds.planHolderName}`; hNE.style.display = 'block'; } else { hNE.textContent = ''; hNE.style.display = 'none'; } document.getElementById('payment-status-message').textContent = ''; document.getElementById('utr-id').value = ''; document.getElementById('submit-payment-btn').disabled = false; navigateTo('payment-page'); } });
+            document.getElementById('payment-back-btn').addEventListener('click', () => { navigateTo('wallet-page'); });
+            document.getElementById('payment-form').addEventListener('submit', e => { e.preventDefault(); const u = auth.currentUser; if (!u) return; const sBtn = document.getElementById('submit-payment-btn'); const sMsg = document.getElementById('payment-status-message'); const uInput = document.getElementById('utr-id'); const uVal = uInput.value.trim(); if (!/^[0-9]{12}$/.test(uVal)) { sMsg.style.color = '#e85d75'; sMsg.textContent = 'Enter valid 12-digit UTR.'; uInput.focus(); return; } sBtn.disabled = true; sMsg.style.color = 'var(--text-secondary)'; sMsg.textContent = 'Checking UTR...'; database.ref('usedUTRs').child(uVal).once('value').then(s => { if (s.exists()) { sMsg.style.color = '#e85d75'; sMsg.textContent = 'UTR already used.'; sBtn.disabled = false; return; } sMsg.textContent = ''; showPaymentPopup('fa-spinner', 'Submitting...', 'Submitting proof...'); const rData = { userId: u.uid, userEmail: u.email, userName: u.displayName || u.email.split('@')[0], utr: uVal, amount: document.getElementById('payment-amount').value, planId: document.getElementById('selected-plan-id').value, planName: document.getElementById('selected-plan-name').value, status: 'pending', createdAt: firebase.database.ServerValue.TIMESTAMP }; const nK = paymentRequestsRef.push().key; const up = {}; up[`/payment_requests/${nK}`] = rData; up[`/usedUTRs/${uVal}`] = { userId: u.uid, reqId: nK, status: 'pending', createdAt: firebase.database.ServerValue.TIMESTAMP }; database.ref().update(up).then(() => { showPaymentPopup('fa-check-circle', 'Submitted!', 'Pending verification.', true); const l = (sn) => { const uD = sn.val(); if (!uD) return; if (uD.status === 'approved') { showPaymentPopup('fa-check-circle', 'Approved!', 'Subscription updated.', true); paymentRequestsRef.child(nK).off('value', l); currentPaymentKeyListener = null; loadPaymentHistory(); } else if (uD.status === 'rejected') { showPaymentPopup('fa-times-circle', 'Rejected', 'Contact support.', true); paymentRequestsRef.child(nK).off('value', l); currentPaymentKeyListener = null; loadPaymentHistory(); } }; currentPaymentKeyListener = { key: nK, listener: l }; paymentRequestsRef.child(nK).on('value', l); }).catch(er => { showPaymentPopup('fa-times-circle', 'Failed', 'Try again.', true); sBtn.disabled = false; }); }).catch(er => { sMsg.style.color = '#e85d75'; sMsg.textContent = 'UTR check failed.'; sBtn.disabled = false; }); });
+            document.getElementById('copy-upi-btn').addEventListener('click', () => { const id = document.getElementById('upi-id-text').textContent; navigator.clipboard.writeText(id).then(() => alert('UPI ID Copied!'), () => alert('Copy failed.')); });
+            document.getElementById('change-language-btn').addEventListener('click', () => { const u = auth.currentUser; if(u) { database.ref('users/' + u.uid + '/language').remove(); } });
+            document.getElementById('search-icon-btn').addEventListener('click', () => navigateTo('search-page')); document.getElementById('search-back-btn').addEventListener('click', () => navigateTo('home-page')); document.getElementById('search-bar-page').addEventListener('input', performSearch);
+            document.getElementById('video-search-icon-btn').addEventListener('click', () => navigateTo('video-search-page')); document.getElementById('video-search-back-btn').addEventListener('click', () => navigateTo('video-page')); document.getElementById('video-search-bar-page').addEventListener('input', performVideoSearch);
+            document.getElementById('play-pause-btn').addEventListener('click', () => (isPlaying ? pauseAudio() : playAudio())); document.getElementById('next-btn').addEventListener('click', nextStory); document.getElementById('prev-btn').addEventListener('click', prevStory); document.getElementById('shuffle-btn').addEventListener('click', e => e.currentTarget.classList.toggle('active', isShuffle = !isShuffle)); document.getElementById('repeat-btn').addEventListener('click', e => e.currentTarget.classList.toggle('active', isRepeat = !isRepeat)); document.getElementById('back-btn').addEventListener('click', () => { playerPage.classList.remove('active'); if (isPlayerSessionActive) showMiniPlayer(); }); playerFavIcon.addEventListener('click', () => toggleFavourite(currentStoryId)); document.getElementById('progress-container').addEventListener('click', setAudioProgress); miniPlayerCloseBtn.addEventListener('click', e => { e.stopPropagation(); hideMiniPlayer(); }); miniPlayerPlayBtn.addEventListener('click', e => { e.stopPropagation(); isPlaying ? pauseAudio() : playAudio(); }); miniPlayer.addEventListener('click', e => { if (!e.target.closest('#mini-player-controls')) navigateTo('player-page'); }); audio.addEventListener('timeupdate', updateAudioProgress); audio.addEventListener('ended', () => { if (isRepeat) { audio.currentTime = 0; playAudio(); } else { nextStory(); } });
+            document.getElementById('video-player-minimize-btn').addEventListener('click', () => { videoPlayerPage.classList.remove('active'); if (isVideoPlayerSessionActive) showMiniVideoPlayer(); }); miniVideoPlayer.addEventListener('click', e => { if (!e.target.closest('#mini-video-player-controls')) navigateTo('video-player-page'); }); miniVideoPlayerCloseBtn.addEventListener('click', e => { e.stopPropagation(); hideMiniVideoPlayer(); }); miniVideoPlayerPlayBtn.addEventListener('click', e => { e.stopPropagation(); toggleVideoPlay(); }); videoElement.addEventListener('play', syncVideoPlayPauseIcons); videoElement.addEventListener('pause', syncVideoPlayPauseIcons); videoElement.addEventListener('timeupdate', updateVideoProgress);
+            document.getElementById('view-all-trending-btn').addEventListener('click', () => navigateTo('trending-page'));
+            document.getElementById('help-support-btn').addEventListener('click', () => window.open(playStoreUrl, '_blank')); document.getElementById('privacy-policy-btn').addEventListener('click', () => window.open(playStoreUrl, '_blank')); document.getElementById('invite-friends-btn').addEventListener('click', async () => { const d = { title: 'Story App!', text: 'Listen to stories.', url: playStoreUrl }; if (navigator.share) { try { await navigator.share(d); } catch (e) {} } else { try { await navigator.clipboard.writeText(playStoreUrl); alert('Link copied!'); } catch (e) { alert('Copy failed.'); } } });
+            const hH = document.querySelector('#home-page .app-header'), hMC = document.querySelector('#home-page .main-content'); if (hH && hMC) { let lS = 0; hMC.addEventListener('scroll', () => { const cS = hMC.scrollTop; if (cS > lS && cS > 50) hH.classList.add('header-hidden'); else hH.classList.remove('header-hidden'); lS = cS <= 0 ? 0 : cS; }); }
+            const nI = { Home: 'home-page', Categories: 'categories-page', Video: 'video-page', Favourites: 'favourites-page', Profile: 'profile-page' }; const nIcons = { Home: 'fa-home', Categories: 'fa-th-large', Video: 'fa-video', Favourites: 'fa-heart', Profile: 'fa-user' }; for(const i in nI) { const b = document.createElement('button'); b.className = 'nav-item'; b.dataset.page = nI[i]; b.innerHTML = `<i class="fas ${nIcons[i]}"></i><span>${i}</span>`; b.addEventListener('click', () => { navigateTo(b.dataset.page); }); bottomNav.appendChild(b); }
+
+        });
+    </script>
+</body>
+</html>
